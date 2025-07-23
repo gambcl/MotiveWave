@@ -115,6 +115,9 @@ public class InitialBalance extends Study
 
         public void setIsConfirmed(boolean isConfirmed)
         {
+            if (!isUpdated())
+                return;
+
             _isConfirmed = isConfirmed;
 
             // Set PopUp message, now that IB values are confirmed.
@@ -526,10 +529,11 @@ public class InitialBalance extends Study
         var highlightTimeframe = settings.getColorInfo(TIMEFRAME_FILL);
 
         var instr = ctx.getInstrument();
+        var now = ctx.getCurrentTime();
         // Use 1-minute bars to build IB regions.
         var minuteSeries = ctx.getDataSeries(BarSize.getBarSize(Enums.BarSizeType.LINEAR, Enums.IntervalType.MINUTE, 1));
         long regionsFirstDay = Util.getMidnight(minuteSeries.getStartTime(0), ctx.getTimeZone());
-        long regionsLastDay = Util.getMidnight(ctx.getCurrentTime() + (15 * Util.MILLIS_IN_DAY), ctx.getTimeZone());
+        long regionsLastDay = Util.getMidnight(now + (15 * Util.MILLIS_IN_DAY), ctx.getTimeZone());
 
         long day = regionsFirstDay;
         InitialBalanceRegion prevRegion = null;
@@ -543,26 +547,37 @@ public class InitialBalance extends Study
             long regionStartTime = day + tf.getStartTime();
             long regionEndTime = day2 + tf.getEndTime();
 
-            int si = minuteSeries.findIndex(regionStartTime);
-            int ei = minuteSeries.findIndex(regionEndTime - 100);
-
-            Double h = minuteSeries.highest(ei, ei-si+1, Enums.BarInput.HIGH);
-            Double l = minuteSeries.lowest(ei, ei-si+1, Enums.BarInput.LOW);
-
             var region = new InitialBalanceRegion(ctx.getInstrument(), regionStartTime, regionEndTime);
-            if (h != null && l != null)
-            {
-                region.setHigh(h);
-                region.setLow(l);
-            }
-            if (ctx.getCurrentTime() >= regionEndTime)
-            {
-                region.setIsConfirmed(true);
-                // Now that IB is confirmed, update bar values.
-                updateBarValues(series, region);
-            }
             _regions.add(region);
             addFigure(region);
+
+            if (now > regionStartTime)
+            {
+                int si = minuteSeries.findIndex(regionStartTime);
+                int ei = minuteSeries.findIndex(regionEndTime - 100);
+
+                // Make sure this is a valid range
+                if (minuteSeries.getStartTime(si) > regionEndTime || minuteSeries.getStartTime(ei) < regionStartTime) {
+                    day = nextDay;
+                    //debug("calculateValues: Skipping region " + Util.formatYYYYMMMDDHHSSMMM(regionStartTime, ctx.getTimeZone()));
+                    continue;
+                }
+
+                Double h = minuteSeries.highest(ei, ei-si+1, Enums.BarInput.HIGH);
+                Double l = minuteSeries.lowest(ei, ei-si+1, Enums.BarInput.LOW);
+
+                if (h != null && l != null)
+                {
+                    region.setHigh(h);
+                    region.setLow(l);
+                }
+                if (now >= regionEndTime)
+                {
+                    region.setIsConfirmed(true);
+                    // Now that IB is confirmed, update bar values.
+                    updateBarValues(series, region);
+                }
+            }
 
             if (prevRegion != null)
             {
@@ -572,17 +587,25 @@ public class InitialBalance extends Study
             day = nextDay;
             prevRegion = region;
         }
+
+        //dumpRegions("calculateValues");
     }
 
     @Override
     public void onBarUpdate(DataContext ctx)
     {
         // Find the currently developing IB region.
-        var region = findLatestInitialBalanceRegion(ctx.getCurrentTime());
+        var now = ctx.getCurrentTime();
+        var region = findLatestInitialBalanceRegion(now);
         if (region != null)
         {
+            //debug("Found developing region for " + Util.formatYYYYMMMDDHHSSMMM(now));
+            //dumpRegion(region, "onBarUpdate[BEFORE]");
             var series = ctx.getDataSeries();
-            region.updateRange(series.getLow(),  series.getHigh());
+            if (region.updateRange(series.getLow(), series.getHigh()))
+            {
+                //dumpRegion(region, "onBarUpdate[AFTER]");
+            }
         }
     }
 
@@ -624,5 +647,18 @@ public class InitialBalance extends Study
             else if (barEndTime <= region.getStartTime())
                 break;
         }
+    }
+
+    private void dumpRegions(String prefix)
+    {
+        for (var region : _regions)
+        {
+            dumpRegion(region, prefix);
+        }
+    }
+
+    private void dumpRegion(InitialBalanceRegion region, String prefix)
+    {
+        debug((prefix != null ? prefix + " " : "") + "REGION: " + Util.formatYYYYMMMDDHHSSMMM(region.getStartTime()) + ", updated=" + region.isUpdated() + ", confirmed=" + region.isConfirmed() + ", high=" + (region.isUpdated() ? region.getHigh() : "null") + ", low=" + (region.isUpdated() ? region.getLow() : "null"));
     }
 }
