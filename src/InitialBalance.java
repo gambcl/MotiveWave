@@ -467,15 +467,27 @@ public class InitialBalance extends Study
         grpRegions.addRow(new ColorDescriptor(RANGE_FILL, "Highlight Range", Util.getAlphaFill(defaults.getYellow()), true, true));
 
         var grpLines = tabLines.addGroup("Lines");
-        grpLines.addRow(new PathDescriptor(IB_HIGH_LINE, "IB High", defaults.getGreen(), 2.0f, null, true, false, true));
-        grpLines.addRow(new PathDescriptor(IB_MID_LINE, "IB Mid", defaults.getOrange(), 1.0f,  new float[] {4, 4}, true, false, true));
-        grpLines.addRow(new PathDescriptor(IB_LOW_LINE, "IB Low", defaults.getRed(), 2.0f, null, true, false, true));
+        var pathIBHigh = new PathDescriptor(IB_HIGH_LINE, "IB High", defaults.getGreen(), 2.0f, null, true, false, true);
+        pathIBHigh.setSupportsAdvancedPanel(false);
+        grpLines.addRow(pathIBHigh);
+        var pathIBMid = new PathDescriptor(IB_MID_LINE, "IB Mid", defaults.getOrange(), 1.0f,  new float[] {4, 4}, true, false, true);
+        pathIBMid.setSupportsAdvancedPanel(false);
+        grpLines.addRow(pathIBMid);
+        var pathIBLow = new PathDescriptor(IB_LOW_LINE, "IB Low", defaults.getRed(), 2.0f, null, true, false, true);
+        pathIBLow.setSupportsAdvancedPanel(false);
+        grpLines.addRow(pathIBLow);
 
         var grpExtLines = tabLines.addGroup("Extension Lines");
         grpExtLines.addRow(new IntegerDescriptor(NUM_EXTENSION_LEVELS, "Show Extension Levels", 2, 0, MAX_EXTENSION_LEVELS, 1));
-        grpExtLines.addRow(new PathDescriptor(IB_HIGH_EXT_LINE, "IB High Extension", defaults.getGreen(), 2.0f, new float[] {9, 4}, true, false, true));
-        grpExtLines.addRow(new PathDescriptor(IB_MID_EXT_LINE, "IB Mid Extension", defaults.getOrange(), 1.0f,  new float[] {4, 4}, true, false, true));
-        grpExtLines.addRow(new PathDescriptor(IB_LOW_EXT_LINE, "IB Low Extension", defaults.getRed(), 2.0f, new float[] {9, 4}, true, false, true));
+        var pathIBHighExt = new PathDescriptor(IB_HIGH_EXT_LINE, "IB High Extension", defaults.getGreen(), 2.0f, new float[] {9, 4}, true, false, true);
+        pathIBHighExt.setSupportsAdvancedPanel(false);
+        grpExtLines.addRow(pathIBHighExt);
+        var pathIBMidExt = new PathDescriptor(IB_MID_EXT_LINE, "IB Mid Extension", defaults.getOrange(), 1.0f,  new float[] {4, 4}, true, false, true);
+        pathIBMidExt.setSupportsAdvancedPanel(false);
+        grpExtLines.addRow(pathIBMidExt);
+        var pathIBLowExt = new PathDescriptor(IB_LOW_EXT_LINE, "IB Low Extension", defaults.getRed(), 2.0f, new float[] {9, 4}, true, false, true);
+        pathIBLowExt.setSupportsAdvancedPanel(false);
+        grpExtLines.addRow(pathIBLowExt);
 
         // Only enable the extension settings if NUM_EXTENSION_LEVELS is > 0.
         sd.addDependency(new ValueDependency(NUM_EXTENSION_LEVELS,
