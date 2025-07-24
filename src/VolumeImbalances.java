@@ -1,6 +1,6 @@
 import com.motivewave.platform.sdk.common.*;
-import com.motivewave.platform.sdk.common.desc.ColorDescriptor;
 import com.motivewave.platform.sdk.common.desc.MarkerDescriptor;
+import com.motivewave.platform.sdk.common.desc.PathDescriptor;
 import com.motivewave.platform.sdk.draw.Figure;
 import com.motivewave.platform.sdk.draw.Marker;
 import com.motivewave.platform.sdk.study.Study;
@@ -111,12 +111,14 @@ public class VolumeImbalances extends Study
 
             if (!active)
             {
+                setPopupMessage(null);
                 removeFigure(this);
                 if (_marker != null)
                     removeFigure(_marker);
             }
             else
             {
+                setPopupMessage(_direction == Direction.Bullish ? "Bullish Volume Imbalance " + format(_high) : "Bearish Volume Imbalance " + format(_low));
                 addFigure(this);
                 if (_marker != null)
                     addFigure(_marker);
@@ -125,27 +127,55 @@ public class VolumeImbalances extends Study
         }
 
         @Override
+        public boolean contains(double x, double y, DrawContext ctx)
+        {
+            if (!isActive())
+                return false;
+
+            // Check x coordinate.
+            var bounds = ctx.getBounds();
+            var leftX = ctx.translateTime(_startTime);
+            var rightX = _filledTime != null ? ctx.translateTime(_filledTime) : bounds.getMaxX();
+            if (x < leftX || x > rightX)
+                return false;
+
+            // Check y coordinate.
+            var settings = getSettings();
+            var pathBullish = settings.getPath(SHOW_BULLISH);
+            var pathBearish = settings.getPath(SHOW_BEARISH);
+            if ((_direction == Direction.Bullish && pathBullish != null && pathBullish.isEnabled()) ||
+                    (_direction == Direction.Bearish && pathBearish != null && pathBearish.isEnabled()))
+            {
+                var topY = ctx.translateValue(_high);
+                var bottomY = ctx.translateValue(_low);
+                if (y >= topY && y <= bottomY)
+                    return true;
+            }
+            return false;
+        }
+
+        @Override
         public void draw(Graphics2D gc, DrawContext ctx)
         {
             var settings = ctx.getSettings();
-            var bullishColor = settings.getColorInfo(SHOW_BULLISH);
-            var bearishColor = settings.getColorInfo(SHOW_BEARISH);
+            var bullishPath = settings.getPath(SHOW_BULLISH);
+            var bearishPath = settings.getPath(SHOW_BEARISH);
             var bounds = ctx.getBounds();
             var leftX = ctx.translateTime(_startTime);
             var rightX = (int) (_filled ? ctx.translateTime(_filledTime) : bounds.getMaxX());
 
-            if (_direction == Direction.Bullish && bullishColor != null)
+            if (_direction == Direction.Bullish && bullishPath != null)
             {
                 var y = ctx.translateValue(_high);
-                gc.setColor(bullishColor.getColor());
-                gc.setStroke(new BasicStroke(4));
+                gc.setColor(bullishPath.getColor());
+                gc.setStroke(ctx.isSelected() ? bullishPath.getSelectedStroke() : bullishPath.getStroke());
                 gc.drawLine(leftX, y, rightX, y);
             }
-            else if (_direction == Direction.Bearish && bearishColor != null)
+            else if (_direction == Direction.Bearish && bearishPath != null)
             {
                 var y = ctx.translateValue(_low);
-                gc.setColor(bearishColor.getColor());
-                gc.setStroke(new BasicStroke(4));
+                gc.setColor(bearishPath.getColor());
+                gc.setStroke(ctx.isSelected() ? bearishPath.getSelectedStroke() : bearishPath.getStroke());
                 gc.drawLine(leftX, y, rightX, y);
             }
         }
@@ -167,13 +197,18 @@ public class VolumeImbalances extends Study
     {
         var sd = createSD();
         var tabGeneral = sd.addTab("General");
+
         var grpInputs = tabGeneral.addGroup("Inputs");
-        grpInputs.addRow(new ColorDescriptor(SHOW_BULLISH, "Show Bullish", defaults.getGreen(), true, true));
-        grpInputs.addRow(new ColorDescriptor(SHOW_BEARISH, "Show Bearish", defaults.getRed(), true, true));
+        var pathBullish = new PathDescriptor(SHOW_BULLISH, "Show Bullish", Util.awtColor(0, 255, 255, 255), 4.0f, null, true, false, true);
+        pathBullish.setSupportsAdvancedPanel(false);
+        grpInputs.addRow(pathBullish);
+        var pathBearish = new PathDescriptor(SHOW_BEARISH, "Show Bearish", Util.awtColor(238, 130, 238, 255), 4.0f, null, true, false, true);
+        pathBearish.setSupportsAdvancedPanel(false);
+        grpInputs.addRow(pathBearish);
 
         var grpMarkers = tabGeneral.addGroup("Markers");
-        grpMarkers.addRow(new MarkerDescriptor(BULLISH_MARKER, "Bullish", Enums.MarkerType.TRIANGLE, Enums.Size.MEDIUM, defaults.getGreen(), defaults.getLineColor(), true, true));
-        grpMarkers.addRow(new MarkerDescriptor(BEARISH_MARKER, "Bearish", Enums.MarkerType.TRIANGLE, Enums.Size.MEDIUM, defaults.getRed(), defaults.getLineColor(), true, true));
+        grpMarkers.addRow(new MarkerDescriptor(BULLISH_MARKER, "Bullish", Enums.MarkerType.TRIANGLE, Enums.Size.MEDIUM, Util.awtColor(0, 255, 255, 255), defaults.getLineColor(), true, true));
+        grpMarkers.addRow(new MarkerDescriptor(BEARISH_MARKER, "Bearish", Enums.MarkerType.TRIANGLE, Enums.Size.MEDIUM, Util.awtColor(238, 130, 238, 255), defaults.getLineColor(), true, true));
 
         sd.addQuickSettings(SHOW_BULLISH, SHOW_BEARISH);
 
@@ -264,8 +299,8 @@ public class VolumeImbalances extends Study
     {
         var series = ctx.getDataSeries();
         var settings = getSettings();
-        var bullishColor = settings.getColorInfo(SHOW_BULLISH);
-        var bearishColor = settings.getColorInfo(SHOW_BEARISH);
+        var bullishPath = settings.getPath(SHOW_BULLISH);
+        var bearishPath = settings.getPath(SHOW_BEARISH);
         var bullishMarker = settings.getMarker(BULLISH_MARKER);
         var bearishMarker = settings.getMarker(BEARISH_MARKER);
         int prevIdx = currIdx - 1;
@@ -280,8 +315,8 @@ public class VolumeImbalances extends Study
         if (!_unfilled.isEmpty() && _unfilled.getLast().getStartBarIdx() == currIdx)
             volumeImbalance = _unfilled.getLast();
 
-        if (bullishColor != null &&
-                bullishColor.isEnabled() &&
+        if (bullishPath != null &&
+                bullishPath.isEnabled() &&
                 isBullish(series, prevIdx) &&
                 isBullish(series, currIdx) &&
                 (series.getOpen(currIdx) > series.getClose(prevIdx)) &&
@@ -305,8 +340,8 @@ public class VolumeImbalances extends Study
                 debug("New bullish VolumeImbalance detected at " + Util.formatYYYYMMMDDHHSSMMM(series.getStartTime(currIdx), ctx.getTimeZone()));
             }
         }
-        else if (bearishColor != null &&
-                bearishColor.isEnabled() &&
+        else if (bearishPath != null &&
+                bearishPath.isEnabled() &&
                 isBearish(series, prevIdx) &&
                 isBearish(series, currIdx) &&
                 (series.getOpen(currIdx) < series.getClose(prevIdx)) &&
