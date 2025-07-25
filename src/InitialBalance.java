@@ -257,6 +257,7 @@ public class InitialBalance extends Study
             var ibLowExtLine = settings.getPath(IB_LOW_EXT_LINE);
             var font = settings.getFont(LBL_FONT);
             var align = settings.getString(LBL_ALIGN);
+            var showValues = settings.getBoolean(LBL_SHOW_VALUES);
 
             if (timeframeFill != null && timeframeFill.isEnabled())
             {
@@ -289,15 +290,15 @@ public class InitialBalance extends Study
                     // Draw IBH/IBL lines.
                     if (ibHighLine != null && ibHighLine.isEnabled())
                     {
-                        drawLine(gc, ctx, ibHighLine, font, align, _high, "IB High: ");
+                        drawLine(gc, ctx, ibHighLine, font, align, _high, "IB High", showValues);
                     }
                     if (ibMidLine != null && ibMidLine.isEnabled())
                     {
-                        drawLine(gc, ctx, ibMidLine, font, align, round((_low + _high) / 2.0), "IB Mid: ");
+                        drawLine(gc, ctx, ibMidLine, font, align, round((_low + _high) / 2.0), "IB Mid", showValues);
                     }
                     if (ibLowLine != null && ibLowLine.isEnabled())
                     {
-                        drawLine(gc, ctx, ibLowLine, font, align, _low, "IB Low: ");
+                        drawLine(gc, ctx, ibLowLine, font, align, _low, "IB Low", showValues);
                     }
 
                     // Draw IBH/IBL lines.
@@ -310,24 +311,24 @@ public class InitialBalance extends Study
                             // Draw high extension line
                             if (ibHighExtLine != null && ibHighExtLine.isEnabled())
                             {
-                                drawLine(gc, ctx, ibHighExtLine, font, align, _high + (i + 1) * ibPriceRange, "IB High + " + (i+1) + "xIB𝚫: ");
+                                drawLine(gc, ctx, ibHighExtLine, font, align, _high + (i + 1) * ibPriceRange, "IB High + " + (i+1) + "xIB𝚫", showValues);
 
                                 // Draw high extension mid line
                                 if (ibMidExtLine != null && ibMidExtLine.isEnabled())
                                 {
-                                    drawLine(gc, ctx, ibMidExtLine, font, align, _high + (i * ibPriceRange) + ibHalfPriceRange, "IB High + " + (i>0?i:"") + "½xIB𝚫: ");
+                                    drawLine(gc, ctx, ibMidExtLine, font, align, _high + (i * ibPriceRange) + ibHalfPriceRange, "IB High + " + (i>0?i:"") + "½xIB𝚫", showValues);
                                 }
                             }
 
                             // Draw low extension line
                             if (ibLowExtLine != null && ibLowExtLine.isEnabled())
                             {
-                                drawLine(gc, ctx, ibLowExtLine, font, align, _low - (i + 1) * ibPriceRange, "IB Low - " + (i+1) + "xIB𝚫: ");
+                                drawLine(gc, ctx, ibLowExtLine, font, align, _low - (i + 1) * ibPriceRange, "IB Low - " + (i+1) + "xIB𝚫", showValues);
 
                                 // Draw low extension mid line
                                 if (ibMidExtLine != null && ibMidExtLine.isEnabled())
                                 {
-                                    drawLine(gc, ctx, ibMidExtLine, font, align,  _low - (i * ibPriceRange) - ibHalfPriceRange, "IB Low - " + (i>0?i:"") + "½xIB𝚫: ");
+                                    drawLine(gc, ctx, ibMidExtLine, font, align,  _low - (i * ibPriceRange) - ibHalfPriceRange, "IB Low - " + (i>0?i:"") + "½xIB𝚫", showValues);
                                 }
                             }
                         }
@@ -336,12 +337,12 @@ public class InitialBalance extends Study
             }
         }
 
-        protected void drawLine(Graphics2D gc, DrawContext ctx, PathInfo path, FontInfo font, String align, double value, String prefix)
+        protected void drawLine(Graphics2D gc, DrawContext ctx, PathInfo path, FontInfo font, String align, double value, String prefix, boolean showValue)
         {
             if (!path.isEnabled() || value == Float.MAX_VALUE || value == Float.MIN_VALUE)
                 return;
 
-            var y = ctx.translateValue(value);
+            int y = ctx.translateValue(value);
 
             if (font != null && font.isEnabled())
             {
@@ -357,30 +358,23 @@ public class InitialBalance extends Study
                 var fnt = font.getFont();
                 String valFmt = ctx.format(value);
 
-                String lbl = prefix + valFmt;
-                if (path.isShowTag())
-                {
-                    if (path.getTagFont() != null)
-                        fnt = path.getTagFont();
-                    lbl = path.getTag();
-                    if (lbl == null)
-                        lbl = "";
-                    if (path.isShowTagValue())
-                        lbl += " " + valFmt;
-                    if (path.getTagTextColor() != null)
-                        color = path.getTagTextColor();
-                }
+                String lblMiddle = showValue ? prefix + ": " + valFmt : prefix;
+                String lblLeftRight = showValue ? prefix + "\n" + valFmt : prefix;
 
                 gc.setFont(fnt);
                 gc.setColor(color);
                 gc.setStroke(ctx.isSelected() ? path.getSelectedStroke() : path.getStroke());
                 var fm = gc.getFontMetrics();
-                int w = fm.stringWidth(lbl);
+                int lblPrefixWidth = fm.stringWidth(prefix);
+                int lblValueWidth = showValue ? fm.stringWidth(valFmt) : 0;
+                int w = (align.equals(MIDDLE)) ? fm.stringWidth(lblMiddle) : Math.max(lblPrefixWidth, lblValueWidth);
+                int lblY = y;
                 switch(align)
                 {
                     case RIGHT:
                         gc.drawLine(x, y, x2-w-5, y);
-                        gc.drawString(lbl, x2 - w, y+fm.getAscent()/2);
+                        lblY = showValue ? y-fm.getAscent()/3 : y+fm.getAscent()/2;
+                        gc.drawString(lblLeftRight, x2 - w, lblY);
                         break;
                     case LEFT:
                         if (x2 - x < w + 5)
@@ -388,7 +382,8 @@ public class InitialBalance extends Study
                         else
                         {
                             gc.drawLine(x+w+5, y, x2, y);
-                            gc.drawString(lbl, x, y+fm.getAscent()/2);
+                            lblY = showValue ? y-fm.getAscent()/3 : y+fm.getAscent()/2;
+                            gc.drawString(lblLeftRight, x, lblY);
                         }
                         break;
                     case MIDDLE:
@@ -397,9 +392,10 @@ public class InitialBalance extends Study
                             gc.drawLine(x, y, x2, y);
                         else
                         {
-                            gc.drawLine(x, y, cx-w/2 - 2, y);
-                            gc.drawString(lbl, cx-w/2, y+fm.getAscent()/2);
-                            gc.drawLine(cx+w/2+2, y, x2, y);
+                            gc.drawLine(x, y, cx-w/2 - 5, y);
+                            lblY = y+fm.getAscent()/2;
+                            gc.drawString(lblMiddle, cx-w/2, lblY);
+                            gc.drawLine(cx+w/2 + 5, y, x2, y);
                         }
                         break;
                     default:
@@ -430,6 +426,7 @@ public class InitialBalance extends Study
     final static String IB_LOW_EXT_LINE = "ibLowExtLine";
     final static String LBL_FONT = "lblFont";
     final static String LBL_ALIGN = "lblAlign";
+    final static String LBL_SHOW_VALUES = "lblShowValues";
     final static String IB_HIGH_INDICATOR = "ibHighIndicator";
     final static String IB_MID_INDICATOR = "ibMidIndicator";
     final static String IB_LOW_INDICATOR = "ibLowIndicator";
@@ -499,6 +496,7 @@ public class InitialBalance extends Study
         var grpLabels = tabLines.addGroup("Labels");
         grpLabels.addRow(new FontDescriptor(LBL_FONT, "Font", defaults.getFont(), Color.black, false, true, true));
         grpLabels.addRow(new DiscreteDescriptor(LBL_ALIGN, "Align", RIGHT, aligns));
+        grpLabels.addRow(new BooleanDescriptor(LBL_SHOW_VALUES, "Show Values", false));
 
         var grpIndicators = tabGeneral.addGroup("Indicators");
         grpIndicators.addRow(new IndicatorDescriptor(IB_HIGH_INDICATOR, "IB High", defaults.getGreen(), Color.white, false, false, true));
